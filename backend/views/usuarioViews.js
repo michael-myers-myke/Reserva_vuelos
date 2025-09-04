@@ -10,7 +10,16 @@ const horariosController = new HorariosController();
 const TarifasController = require('../controllers/tarifasController');
 const tarifasController = new TarifasController();
 const VuelosController = require('../controllers/vuelosController');
-// const { parse } = require('dotenv');
+const AsientosController = require('../controllers/asientosController');
+const asientosController = new AsientosController();
+const PagosController = require('../controllers/pagosController');
+const pagosController = new PagosController();
+const ReservasController = require('../controllers/reservasController');
+const reservasController = new ReservasController();
+const BoletosController = require('../controllers/boletosController');
+const boletoscontroller = new BoletosController();
+const sesion = require('../utils/sesion');
+
 
 
 async function menu() {
@@ -50,7 +59,7 @@ async function menuPrincipal() {
     console.log("4.Salir");
     console.log("**********************");
 
-    const opcion = parseInt(prompt("Elige una opcion: "));
+    const opcion = prompt("Elige una opcion: ");
     if(opcion === "1"){
         datosRegistro();
     } else if (opcion === "2") {
@@ -137,9 +146,9 @@ async function menuTarifas() {
         return menuTarifas();
     }
     const clase = prompt("Ingrese la clase de su vuelo: {Economica, Ejecutiva, Primera}: ");
-    const cantidadTarifa = parseInt(prompt("Ingrese el precio de la tarifa de su vuelo: "));
+    const precio = parseInt(prompt("Ingrese el precio de la tarifa de su vuelo: "));
 
-    await tarifasController.tarifa({ idVuelo: vueloSeleccionado.id_vuelo, clase, cantidadTarifa});
+    await tarifasController.tarifa({ idVuelo: vueloSeleccionado.id_vuelo, clase, precio});
     console.log("La tarifa ha sido creada con exito");
     menu();
 }
@@ -165,32 +174,227 @@ async function menuReservas(){
     console.log("**********************");
     console.log("1.Ver vuelos");
     console.log("2.Reservar");
-    console.log("3.Comprar boletos");
+    console.log("3.Mis reservas");
+    console.log("4.Mis boletos");
+    console.log("5.Salir");
 
-    const opcion = parseInt(prompt("Elija una opcion"));
+    const opcion = prompt("Elija una opcion: ");
 
     if(opcion === "1"){
         consultaVuelos();
     } else if(opcion === "2"){
         Reserva();
     } else if(opcion === "3"){
+        misReservas();
+    } else if (opcion === "4"){
         Boletos();
+    } else if(opcion === "5") {
+        process.exit();
     }
 }
 
 async function consultaVuelos() {
-
+    console.log("******************")
+    console.log("Lista de vuelos")
+    console.log("******************")
+    const vuelos = await VuelosController.listarVuelos();
+    console.log("VUELOS: ");
+    vuelos.forEach((v, i) => console.log(`${i + 1}: ${v.aerolinea} | ${v.ciudad_despegue} -> ${v.ciudad_destino} | ${v.fecha_hora_despegue} | ${v.fecha_hora_aterrizaje}`));
+    menuReservas();
 }
 
 async function Reserva() {
+    console.log("******************")
+    console.log("RESERVAS");
+    console.log("******************")
 
+    
+    const usuario = sesion.getUsuario();
+    if (!usuario) {
+        console.log(" Debes iniciar sesión antes de reservar.");
+        return menuPrincipal();
+    }
+
+    const vuelos = await VuelosController.listarVuelos();
+    console.log("Vuelos disponibles: ");
+    vuelos.forEach((v, i) => console.log(`${i + 1}: ${v.ciudad_despegue} | ${v.ciudad_destino} | ${v.fecha_hora_despegue} | ${v.fecha_hora_aterrizaje}`));
+    const opcionVuelo = parseInt(prompt("Ingrese el numero del vuelo que quiere reservar: "));
+    const vueloSeleccionado = vuelos[opcionVuelo - 1];
+    if(!vueloSeleccionado){
+        console.log("opcion no valida escoge un vuelo valido");
+        return Reserva();
+    }
+    
+    const tarifas = await tarifasController.listarTarifas(vueloSeleccionado.id_vuelo);
+    if (tarifas.length === 0) {
+        console.log("⚠ Este vuelo no tiene tarifas registradas aún.");
+        return menuReservas();
+    }
+
+    console.log("Tarifas registradas para este vuelo: ");
+    tarifas.forEach((t, i) => 
+        console.log(`${i + 1}: Clase: ${t.clase} | Precio: $${t.precio}`)
+    );
+    const opcionTarifa = parseInt(prompt("Ingrese el número de la tarifa que quiere seleccionar: "));
+    const tarifaSeleccionada = tarifas[opcionTarifa - 1];
+    if (!tarifaSeleccionada) {
+        console.log("⚠ Opción no válida, escoge una tarifa válida");
+        return Reserva();
+    }
+    console.log(` Has seleccionado la tarifa ${tarifaSeleccionada.clase} con precio $${tarifaSeleccionada.precio}`);
+
+    const asientos = await asientosController.listarAsientosVuelo(vueloSeleccionado.id_vuelo);
+    const asientosDisponibles = asientos.filter(a => a.estado === 'DISPONIBLE');
+
+    if (asientosDisponibles.length === 0) {
+        console.log("⚠ No hay asientos disponibles en este vuelo.");
+        return menuReservas();
+    }
+
+    console.log("Asientos disponibles: ");
+    asientosDisponibles.forEach((a, i) => 
+        console.log(`${i + 1}: Código ${a.codigo_asiento} | Estado: ${a.estado}`)
+    );
+
+    const cantidad = parseInt(prompt("¿Cuántos asientos quieres reservar?: "));
+    if (isNaN(cantidad) || cantidad <= 0) {
+        console.log("⚠ Debes ingresar un número válido de asientos.");
+        return menuReservas();
+    }
+
+    let seleccionados = [];
+    for (let i = 0; i < cantidad; i++) {
+        const codigo = prompt(`Ingresa el código del asiento #${i + 1}: `);
+        const asiento = asientosDisponibles.find(a => a.codigo_asiento === codigo);
+        if (!asiento) {
+            console.log("⚠ Asiento no válido o no disponible. Intenta de nuevo.");
+            i--; 
+        } else {
+            seleccionados.push(asiento);
+        }
+    }
+
+    console.log(" Has seleccionado los asientos: ", seleccionados.map(a => a.codigo_asiento).join(", "));
+
+    const precioTotal = tarifaSeleccionada.precio * cantidad;
+    console.log(` Precio total a pagar: $${precioTotal}`);
+
+    const opcionPago = prompt("Seleccione método de pago (1. Aeropuerto | 2. Tarjeta): ");
+    let metodoPago, numeroTarjeta, nombreTitular, vencimiento, cvv;
+
+    if (opcionPago === "1") {
+        metodoPago = "Aeropuerto";
+        console.log(" Su pago será realizado en el aeropuerto.");
+    } else if (opcionPago === "2") {
+        metodoPago = "Tarjeta";
+        numeroTarjeta = prompt("Ingrese número de tarjeta: ");
+        nombreTitular = prompt("Ingrese nombre del titular: ");
+        vencimiento = prompt("Ingrese fecha de vencimiento (MM/AAAA): ");
+        cvv = prompt("Ingrese CVV: ");
+    } else {
+        console.log(" Método de pago inválido.");
+        return menuReservas();
+    }
+
+    
+    const datosReserva = await reservasController.reserva({
+        idVuelo: vueloSeleccionado.id_vuelo,
+        idUsuario: usuario.id_usuario, 
+        idTarifa: tarifaSeleccionada.id_tarifa,
+        cantidadPasajeros: cantidad,
+        asientos: seleccionados.map(a => a.id_asiento)
+    });
+
+    await pagosController.registrarPago({
+        idReserva: datosReserva.id_reserva,
+        metodoPago,
+        total: precioTotal,
+        numeroTarjeta,
+        nombreTitular,
+        vencimiento,
+        cvv
+    });
+
+     await boletoscontroller.generarBoletos({
+        idReserva: datosReserva.id_reserva,
+        idUsuario: usuario.id_usuario,
+        idVuelo: vueloSeleccionado.id_vuelo,
+        asientos: seleccionados.map(a => a.id_asiento)
+    });
+
+    console.log(" Reserva, pago y boletos generados correctamente.");
+    menuReservas();
+}
+
+async function misReservas() {
+    console.log("******************");
+    console.log("MIS RESERVAS");
+    console.log("******************");
+
+    const usuario = sesion.getUsuario();
+    if (!usuario) {
+        console.log("⚠ Debes iniciar sesión primero.");
+        return menuPrincipal();
+    }
+
+    const reservas = await reservasController.listarReservaUsuario(usuario.id_usuario);
+
+    if (!reservas || reservas.length === 0) {
+        console.log("No tienes reservas registradas.");
+        return menuReservas();
+    }
+
+    reservas.forEach(r => {
+        console.log(`
+        Reserva #${r.id_reserva}
+        Aerolínea: ${r.nombre_aerolinea}
+        Ruta: ${r.ciudad_despegue} -> ${r.ciudad_destino}
+        Clase: ${r.clase} | Precio: $${r.precio}
+        Fecha salida: ${r.fecha_hora_despegue}
+        Fecha llegada: ${r.fecha_hora_aterrizaje}
+        Asientos: ${r.asientos_reservados.join(", ")}
+        `);
+    });
+
+    console.log("******************");
+    return menuReservas();
 }
 
 async function Boletos() {
+    console.log("******************");
+    console.log("MIS BOLETOS");
+    console.log("******************");
 
+    const usuario = sesion.getUsuario();
+    if (!usuario) {
+        console.log("⚠ Debes iniciar sesión primero.");
+        return menuPrincipal();
+    }
+
+    const boletos = await boletoscontroller.listarBoletosUsuario(usuario.id_usuario);
+
+    if (!boletos || boletos.length === 0) {
+        console.log("⚠ No tienes boletos generados.");
+        return menuReservas();
+    }
+
+    boletos.forEach(b => {
+        console.log(`
+        🎫 Boleto: ${b.codigo_boleto}
+        Vuelo: ${b.ciudad_despegue} -> ${b.ciudad_destino}
+        Asiento: ${b.codigo_asiento}
+        Fecha salida: ${b.fecha_salida}
+        Fecha llegada: ${b.fecha_llegada}
+        `);
+    });
+
+    console.log("******************");
+    return menuReservas();
 }
+
+
 
 module.exports = {
     menuPrincipal,
-    menu
+    menu,datosRegistro, datosLogin
 }

@@ -1,2 +1,2 @@
-const { menu } = require('./views/usuarioViews');
-menu();
+const { menuPrincipal } = require('./views/usuarioViews');
+menuPrincipal();

@@ -7,6 +7,7 @@ class AerolineaController {
         try {
             const datosAerolinea = await Aerolinea.crearAerolinea(data);
             console.log("La aerolinea fue registrada en el sistema correctamente: ", datosAerolinea.nombre_aerolinea);
+
         } catch (error) {
             console.error("Hubo un error al registrar esta aerolinea: ", error);
         }
