@@ -1,5 +1,6 @@
 const Pagos = require('../models/pagos');
 
+//Funcion de pago
 class PagosController {
     async registrarPago(data) {
         try {
