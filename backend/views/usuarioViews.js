@@ -20,8 +20,7 @@ const BoletosController = require('../controllers/boletosController');
 const boletoscontroller = new BoletosController();
 const sesion = require('../utils/sesion');
 
-
-
+//Menu de usuario
 async function menu() {
     console.log("**********************");
     console.log("BIENVENIDO AL SISTEMA DE RESERVA DE VUELOS");
